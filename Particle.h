@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cmath>
+#include "changeover.hpp"
 
 struct Vec3{
 	double x, y, z;
@@ -89,6 +90,26 @@ struct Particle{
 		this->acc = acc;
 	}
 
+	void calc_acc_changeover(const Particle *pj, const int n, const double eps2, const ChangeOver& changeover){
+		Vec3 acc = {0.0, 0.0, 0.0};
+		for(int j=0; j<n; j++){
+#ifdef SKIP_SELF
+			if(id == pj[j].id) continue;
+#endif
+			Vec3 dr = pj[j].pos - pos;
+			double r2 = eps2 + dr*dr;
+			double ri2 = 1.0 / r2;
+			double ri1 = sqrt(ri2);
+			double mri1 = pj[j].mass * ri1;
+			double mri3 = mri1 * ri2;
+            double r = r2*ri1;
+            double k = 1.0 - changeover.calcAcc0W(r);
+
+			acc += mri3 * k * dr;
+		}
+		this->acc = acc;
+	}
+
 	void calc_acorr(const Particle *pj, const int n, const double eps2){
 		Vec3 acorr = {0.0, 0.0, 0.0};
 		for(int j=0; j<n; j++){
@@ -113,6 +134,34 @@ struct Particle{
 		this->acorr = 2.0 * acorr;
 	}
 
+	void calc_acorr_changeover(const Particle *pj, const int n, const double eps2, const ChangeOver& changeover){
+		Vec3 acorr = {0.0, 0.0, 0.0};
+		for(int j=0; j<n; j++){
+#ifdef SKIP_SELF
+			if(id == pj[j].id) continue;
+#endif
+			Vec3 dr = pj[j].pos - pos;
+			Vec3 da = pj[j].acc - acc;
+			
+			double r2 = eps2 + dr*dr;
+			double drda = dr * da;
+
+			double ri2 = 1.0 / r2;
+			double ri1 = sqrt(ri2);
+			double mri1 = pj[j].mass * ri1;
+			double mri3 = mri1 * ri2;
+
+			double alpha = drda * ri2;
+
+            double r = r2*ri1;
+            double K = 1.0 - changeover.calcAcc0W(r);
+            double dK = - changeover.calcAcc1W(r);
+
+			acorr += mri3 * (K*da - (3.0*K - r*dK) * alpha * dr);
+		}
+		this->acorr = 2.0 * acorr;
+	}
+
 	void calc_pot(const Particle *pj, const int n, const double eps2){
 		double pot = 0.0;
 		for(int j=0; j<n; j++){
@@ -123,6 +172,23 @@ struct Particle{
 			double mri1 = pj[j].mass * ri1;
 
 			pot -= (id != pj[j].id) ? mri1 : 0.0;
+		}
+		this->pot = pot;
+	}
+
+	void calc_pot_changeover(const Particle *pj, const int n, const double eps2, const ChangeOver& changeover){
+		double pot = 0.0;
+		for(int j=0; j<n; j++){
+			Vec3 dr = pj[j].pos - pos;
+			double r2 = eps2 + dr*dr;
+			double ri2 = 1.0 / r2;
+			double ri1 = sqrt(ri2);
+			double mri1 = pj[j].mass * ri1;
+
+            double r = r2*ri1;
+            double W = 1.0 - changeover.calcPotW(r);
+
+			pot -= (id != pj[j].id) ? mri1 * W : 0.0;
 		}
 		this->pot = pot;
 	}

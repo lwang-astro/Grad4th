@@ -11,6 +11,7 @@ struct Nbody{
 	Particle *ptcl;
 
 	double eps2;
+    ChangeOver changeover;
 
 	void read(FILE *fp){
 		assert( 3 == fscanf(fp, "%d %d %lf", &snapid,  &nbody, &tsys) );
@@ -64,6 +65,26 @@ struct Nbody{
 		return ke + pe;
 	}
 
+	double energy_changeover(FILE *fp = NULL){
+		for(int i=0; i<nbody; i++){
+			ptcl[i].calc_pot_changeover(ptcl, nbody, eps2, changeover);
+		}
+
+		double ke = 0.0, pe = 0.0;
+		for(int i=0; i<nbody; i++){
+			ke += ptcl[i].mass * (ptcl[i].vel * ptcl[i].vel);
+			pe += ptcl[i].mass * ptcl[i].pot;
+		}
+		ke *= 0.5;
+		pe *= 0.5;
+
+		if(fp){
+			fprintf(fp, "t = %f, ke = %f, pe = %f, ke+pe = %f\n", tsys, ke, pe, ke+pe);
+		}
+
+		return ke + pe;
+	}
+
 	void calc_acc(){
 #pragma omp parallel for
 		for(int i=0; i<nbody; i++){
@@ -74,6 +95,19 @@ struct Nbody{
 #pragma omp parallel for
 		for(int i=0; i<nbody; i++){
 			ptcl[i].calc_acorr(ptcl, nbody, eps2);
+		}
+	}
+
+	void calc_acc_changeover(){
+#pragma omp parallel for
+		for(int i=0; i<nbody; i++){
+			ptcl[i].calc_acc_changeover(ptcl, nbody, eps2, changeover);
+		}
+	}
+	void calc_acorr_changeover(){
+#pragma omp parallel for
+		for(int i=0; i<nbody; i++){
+			ptcl[i].calc_acorr_changeover(ptcl, nbody, eps2, changeover);
 		}
 	}
 
@@ -149,4 +183,70 @@ struct Nbody{
 
 		tsys += 12.0 * tick;
 	}
+
+	void DKD_2nd_changeover(const double tick){
+		double h  = 6.0 * tick;
+		double h2 = 3.0 * tick;
+
+		drift(h2);
+
+		calc_acc_changeover();
+		kick (h );
+
+		drift(h );
+
+		calc_acc_changeover();
+		kick (h );
+
+		drift(h2);
+
+		tsys += 12.0 * tick;
+	}
+	void KDK_2nd_changeover(const double tick){
+		double h  = 6.0 * tick;
+		double h2 = 3.0 * tick;
+
+		kick (h2);
+		drift(h );
+
+		calc_acc_changeover();
+		kick (h );
+
+		drift(h );
+
+		calc_acc_changeover();
+		kick (h2);
+
+		tsys += 12.0 * tick;
+	}
+	void KDKDK_2nd_changeover(const double tick){
+		kick (2.0 * tick);
+		drift(6.0 * tick);
+
+		calc_acc_changeover();
+		kick (8.0 * tick);
+		drift(6.0 * tick);
+
+		calc_acc_changeover();
+		kick (2.0 * tick);
+
+		tsys += 12.0 * tick;
+	}
+
+	void KDKDK_4th_changeover(const double tick){
+		kick (2.0 * tick);
+		drift(6.0 * tick);
+
+		calc_acc_changeover();
+		calc_acorr_changeover();
+		for(int i=0; i<nbody; i++) ptcl[i].kick_with_corr(tick);
+
+		drift(6.0 * tick);
+
+		calc_acc_changeover();
+		kick (2.0 * tick);
+
+		tsys += 12.0 * tick;
+	}
+
 };

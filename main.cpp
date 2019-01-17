@@ -5,8 +5,26 @@
 
 #include "Nbody.h"
 
+#ifdef CHANGEOVER
+
+#ifndef INTGRT
+#define INTGRT KDKDK_4th_changeover
+#endif
+
+#ifndef ENERGY
+#define ENERGY energy_changeover
+#endif
+
+#else
+
 #ifndef INTGRT
 #define INTGRT KDKDK_4th
+#endif
+
+#ifndef ENERGY
+#define ENERGY energy
+#endif
+
 #endif
 
 int main(int argc, char **argv){
@@ -19,10 +37,15 @@ int main(int argc, char **argv){
 	fclose(fp);
 
 	sys.set_eps(1./64.);
+    sys.changeover.setR(1./64., 1./8.);
 
-	double en0 = sys.energy(stderr);
+	double en0 = sys.ENERGY(stderr);
 
+#ifdef CHANGEOVER
+    sys.calc_acc_changeover();
+#else
 	sys.calc_acc();
+#endif
 
 	const int invtick = atoi(argv[2]);
 	const double tick = 1.0 / invtick;
@@ -37,7 +60,7 @@ int main(int argc, char **argv){
 		// sys.KDK_2nd(tick);
 		// sys.KDKDK_2nd(tick);
 		// sys.KDKDK_4th(tick);
-		double en1 = sys.energy();
+		double en1 = sys.ENERGY();
 		double de = (en1 - en0) / en0;
 		printf("%e %e\n", sys.tsys, de);
 
